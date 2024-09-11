@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Available Quizzes</h2>
+<ul>
+    {% for quiz in quizzes %}
+        <li>
+            <a href="{{ url_for('main.take_quiz', quiz_id=quiz.id) }}">{{ quiz.title }}</a>
+            <p>{{ quiz.description }}</p>
+        </li>
+    {% endfor %}
+</ul>
+{% endblock %}
