@@ -4,6 +4,10 @@ from app import db
 from app.models import User
 from app import bcrypt
 from flask import Blueprint
+from functools import wraps
+from app.models import Quiz, Question, Choice
+from flask import jsonify
+
 
 main = Blueprint('main', __name__)
 
@@ -65,31 +69,37 @@ def take_quiz(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
     return render_template("take_quiz.html", quiz=quiz)
 
-@main.route("/quiz/<int:quiz_id>/submit", methods=["POST"])
+@main.route('/quiz/<int:quiz_id>', methods=['POST'])
 @login_required
 def submit_quiz(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
-    questions = quiz.questions
+    questions = Question.query.filter_by(quiz_id=quiz_id).all()
     score = 0
-    total = len(questions)
+    total_questions = len(questions)
 
     for question in questions:
-        selected_answer_id = request.form.get(str(question.id))
-        if selected_answer_id:
-            answer = Answer.query.get(selected_answer_id)
-            if answer.is_correct:
+        selected_choice_id = request.form.get(f'question_{question.id}')
+        if selected_choice_id:
+            selected_choice = Choice.query.get(int(selected_choice_id))
+            if selected_choice.is_correct:
                 score += 1
 
     # Calculate percentage score
-    percentage_score = (score / total) * 100
+    percentage = (score / total_questions) * 100
 
-    # Store the quiz result in the database
-    quiz_result = QuizResult(score=percentage_score, user_id=current_user.id, quiz_id=quiz.id)
+    # Store the result in the database
+    quiz_result = QuizResult(
+        user_id=session['user_id'],
+        quiz_id=quiz.id,
+        score=score,
+        total_questions=total_questions,
+        percentage=percentage
+    )
     db.session.add(quiz_result)
     db.session.commit()
     
-    flash(f'You scored {score} out of {total}', 'success')
-    return redirect(url_for('main.quizzes'))
+    flash(f'Quiz completed! Your score: {score}/{total_questions} ({percentage:.2f}%)')
+    return redirect(url_for('view_results', quiz_result_id=quiz_result.id))
 
 @main.route("/results")
 @login_required
@@ -151,3 +161,69 @@ def add_answer(question_id):
         return redirect(url_for('main.add_answer', question_id=question.id))
 
     return render_template("add_answer.html", question=question)
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            flash('You need to be logged in to access this page.')
+            return redirect(url_for('main.login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Example: Protecting the quiz route
+@main.route('/quiz')
+@login_required
+def quiz():
+    # Load quiz data and render quiz page
+    pass
+
+@main.route('/quiz/<int:quiz_id>')
+@login_required
+def take_quiz(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    questions = Question.query.filter_by(quiz_id=quiz_id).all()
+    return render_template('quiz.html', quiz=quiz, questions=questions)
+
+@main.route('/results/<int:quiz_result_id>')
+@login_required
+def view_results(quiz_result_id):
+    result = QuizResult.query.get_or_404(quiz_result_id)
+    return render_template('results.html', result=result)
+
+@main.route('/admin/quiz/new', methods=['GET', 'POST'])
+@login_required
+def new_quiz():
+    if request.method == 'POST':
+        title = request.form['title']
+        description = request.form['description']
+        time_limit = int(request.form['time_limit'])
+
+        quiz = Quiz(title=title, description=description, time_limit=time_limit)
+        db.session.add(quiz)
+        db.session.commit()
+
+        flash('Quiz created successfully!')
+        return redirect(url_for('main.index'))
+
+    return render_template('admin/new_quiz.html')
+
+@main.route('/api/quiz/<int:quiz_id>', methods=['GET'])
+def get_quiz_api(quiz_id):
+    quiz = Quiz.query.get_or_404(quiz_id)
+    questions = Question.query.filter_by(quiz_id=quiz_id).all()
+
+    quiz_data = {
+        'title': quiz.title,
+        'description': quiz.description,
+        'questions': []
+    }
+
+    for question in questions:
+        question_data = {
+            'text': question.text,
+            'choices': [{'id': choice.id, 'text': choice.text} for choice in question.choices]
+        }
+        quiz_data['questions'].append(question_data)
+
+    return jsonify(quiz_data)

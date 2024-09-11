@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ quiz.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+        // Set the countdown time in seconds (e.g., 5 minutes)
+        let timeLeft = {{ quiz.time_limit }};
+
+        function startTimer() {
+            const timerDisplay = document.getElementById('timer');
+            const form = document.getElementById('quizForm');
+
+            const countdown = setInterval(function() {
+                let minutes = Math.floor(timeLeft / 60);
+                let seconds = timeLeft % 60;
+
+                seconds = seconds < 10 ? '0' + seconds : seconds;
+                timerDisplay.textContent = `Time left: ${minutes}:${seconds}`;
+
+                if (timeLeft <= 0) {
+                    clearInterval(countdown);
+                    alert('Time is up! Submitting your quiz.');
+                    form.submit();  // Auto-submit the quiz
+                }
+
+                timeLeft--;
+            }, 1000);
+        }
+
+        window.onload = startTimer;
+    </script>
+</head>
+<body>
+    <h2>{{ quiz.title }}</h2>
+    <p>{{ quiz.description }}</p>
+
+    <div id="timer" style="font-weight: bold; color: red;">Time left: 5:00</div>
+
+    <form id="quizForm" method="POST" action="{{ url_for('submit_quiz', quiz_id=quiz.id) }}">
+        {% for question in questions %}
+            <div>
+                <h3>{{ question.text }}</h3>
+                {% for choice in question.choices %}
+                    <input type="radio" name="question_{{ question.id }}" value="{{ choice.id }}" required>
+                    <label>{{ choice.text }}</label><br>
+                {% endfor %}
+            </div>
+            <br>
+        {% endfor %}
+        <button type="submit">Submit Quiz</button>
+    </form>
+</body>
+</html>

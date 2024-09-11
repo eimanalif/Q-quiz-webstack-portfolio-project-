@@ -22,9 +22,11 @@ class User(db.Model, UserMixin):
 
 class Quiz(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.String(255), nullable=False)
+    title = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    time_limit = db.Column(db.Integer, default=300)  # Time limit in seconds (default 5 minutes)
     questions = db.relationship('Question', backref='quiz', lazy=True)
+
 
 class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
